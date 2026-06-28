@@ -1,0 +1,72 @@
+```gitignore
+# ==========================
+# Maven
+# ==========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ==========================
+# Environment Variables
+# ==========================
+.env
+.env.*
+
+# ==========================
+# Logs
+# ==========================
+logs/
+*.log
+
+# ==========================
+# Spring Boot
+# ==========================
+HELP.md
+
+# ==========================
+# STS
+# ==========================
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# ==========================
+# IntelliJ IDEA
+# ==========================
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ==========================
+# VS Code
+# ==========================
+.vscode/
+
+# ==========================
+# NetBeans
+# ==========================
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+
+# ==========================
+# OS Files
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# Temporary Files
+# ==========================
+*.tmp
+*.temp
+```
