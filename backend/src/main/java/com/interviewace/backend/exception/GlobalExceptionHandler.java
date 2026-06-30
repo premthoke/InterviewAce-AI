@@ -34,6 +34,14 @@ public class GlobalExceptionHandler {
                 .body(AuthResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<AuthResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(AuthResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<AuthResponse> handleIllegalArgument(IllegalArgumentException ex) {
 
@@ -51,3 +59,4 @@ public class GlobalExceptionHandler {
     }
 
 }
+

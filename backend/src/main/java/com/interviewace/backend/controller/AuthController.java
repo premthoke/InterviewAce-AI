@@ -1,5 +1,6 @@
 package com.interviewace.backend.controller;
 
+import com.interviewace.backend.dto.request.LoginRequest;
 import com.interviewace.backend.dto.request.RegisterRequest;
 import com.interviewace.backend.dto.response.AuthResponse;
 import com.interviewace.backend.service.auth.AuthService;
@@ -27,4 +28,11 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
 }
+
