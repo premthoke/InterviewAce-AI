@@ -8,25 +8,36 @@ import com.interviewace.backend.enums.Role;
 import com.interviewace.backend.exception.EmailAlreadyExistsException;
 import com.interviewace.backend.exception.InvalidCredentialsException;
 import com.interviewace.backend.repository.user.UserRepository;
+import com.interviewace.backend.security.jwt.JwtTokenService;
+import com.interviewace.backend.security.util.JwtConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final JwtTokenService jwtTokenService;
 
     public AuthServiceImpl(UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
-                           AuthenticationManager authenticationManager) {
+                           AuthenticationManager authenticationManager,
+                           JwtTokenService jwtTokenService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
+        this.jwtTokenService = jwtTokenService;
     }
 
     @Override
@@ -58,8 +69,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(LoginRequest request) {
 
+        Authentication authentication;
+
         try {
-            authenticationManager.authenticate(
+            authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             request.getEmail(),
                             request.getPassword()
@@ -69,9 +82,20 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
-        // JWT token generation will be added here in the next milestone
-        return AuthResponse.success("Authentication successful");
+        // Extract the already-loaded principal — no additional database query
+        UserDetails principal = (UserDetails) authentication.getPrincipal();
+
+        // Generate JWT
+        String token = jwtTokenService.generateToken(principal);
+
+        log.info("User authenticated successfully: email={}", principal.getUsername());
+
+        return AuthResponse.loginSuccess(
+                "Authentication successful",
+                token,
+                JwtConstants.TOKEN_TYPE,
+                jwtTokenService.getExpirationMillis()
+        );
     }
 
 }
-
