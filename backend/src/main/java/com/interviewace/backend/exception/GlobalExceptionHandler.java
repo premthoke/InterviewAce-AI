@@ -1,5 +1,6 @@
 package com.interviewace.backend.exception;
 
+import com.interviewace.backend.dto.response.ApiResponse;
 import com.interviewace.backend.dto.response.AuthResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +49,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(AuthResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ProfileNotFoundException.class)
+    public ResponseEntity<ApiResponse> handleProfileNotFound(ProfileNotFoundException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse(false, ex.getMessage(), null));
     }
 
     @ExceptionHandler(Exception.class)
