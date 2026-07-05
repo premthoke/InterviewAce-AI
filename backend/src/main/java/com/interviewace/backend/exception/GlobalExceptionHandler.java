@@ -59,6 +59,14 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse(false, ex.getMessage(), null));
     }
 
+    @ExceptionHandler(ResumeNotFoundException.class)
+    public ResponseEntity<ApiResponse> handleResumeNotFound(ResumeNotFoundException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse(false, ex.getMessage(), null));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponse> handleGenericException(Exception ex) {
 
