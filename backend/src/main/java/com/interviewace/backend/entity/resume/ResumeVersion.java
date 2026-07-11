@@ -103,4 +103,42 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "parse_status", nullable = false)
     @Builder.Default
     private ParseStatus parseStatus = ParseStatus.NOT_STARTED;
+
+    /* ------------------------------------------------------------------ */
+    /*  Storage Fields (Phase 5.3)                                         */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The full HTTPS URL to retrieve the file from the storage provider.
+     *
+     * <p>Stored denormalized for fast reads — avoids reconstructing
+     * URLs from provider-specific components at read time.</p>
+     */
+    @Column(name = "storage_url", nullable = false, length = 500)
+    private String storageUrl;
+
+    /**
+     * The storage provider's unique resource identifier.
+     *
+     * <p>Required for delete, update, and admin operations against
+     * the storage backend (e.g., Cloudinary public ID). This is an
+     * internal field — never exposed in API responses.</p>
+     */
+    @Column(name = "cloudinary_public_id", nullable = false, length = 255)
+    private String cloudinaryPublicId;
+
+    /**
+     * SHA-256 hash of the uploaded file bytes.
+     *
+     * <p>Computed during upload for:</p>
+     * <ul>
+     *     <li>Detecting identical re-uploads (user feedback)</li>
+     *     <li>Integrity verification on download</li>
+     *     <li>Future deduplication optimization</li>
+     * </ul>
+     *
+     * <p>Stored as a 64-character lowercase hex string.</p>
+     */
+    @Column(name = "checksum", nullable = false, length = 64)
+    private String checksum;
 }
