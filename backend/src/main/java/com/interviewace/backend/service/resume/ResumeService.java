@@ -1,7 +1,10 @@
 package com.interviewace.backend.service.resume;
 
 import com.interviewace.backend.dto.resume.ResumeResponse;
+import com.interviewace.backend.dto.resume.ResumeVersionResponse;
 import com.interviewace.backend.entity.user.User;
+
+import java.util.List;
 
 /**
  * Defines operations for managing the Resume aggregate.
@@ -12,8 +15,10 @@ import com.interviewace.backend.entity.user.User;
  * and passing it here. This keeps the service framework-agnostic and reusable
  * regardless of the authentication mechanism (JWT, OAuth2, SSO, etc.).</p>
  *
- * <p>Phase 5.1 provides read and delete operations only. Upload (which triggers
- * lazy creation of the Resume aggregate) will be added in Phase 5.3.</p>
+ * <p>Phase 5.1 provides read and delete operations. Phase 5.2 adds
+ * version query operations ({@link #getVersions}, {@link #getCurrentVersion}).
+ * Upload (which triggers lazy creation of the Resume aggregate) will be
+ * added in Phase 5.3.</p>
  */
 public interface ResumeService {
 
@@ -43,5 +48,34 @@ public interface ResumeService {
      *         if the user has no resume to delete
      */
     void deleteResume(User user);
+
+    /**
+     * Retrieves all resume versions for the given user, ordered by
+     * version number descending (newest first).
+     *
+     * <p>Returns an empty list if the resume exists but has no versions.
+     * Throws {@link com.interviewace.backend.exception.ResumeNotFoundException}
+     * if the user has no resume aggregate at all.</p>
+     *
+     * @param user the authenticated user
+     * @return list of all resume versions, newest first
+     * @throws com.interviewace.backend.exception.ResumeNotFoundException
+     *         if the user has no resume
+     */
+    List<ResumeVersionResponse> getVersions(User user);
+
+    /**
+     * Retrieves the current (latest) resume version for the given user.
+     *
+     * <p>Resolves via the {@code currentVersion} pointer on the Resume
+     * aggregate. Falls back to the highest version number if the pointer
+     * is not yet set.</p>
+     *
+     * @param user the authenticated user
+     * @return the current resume version
+     * @throws com.interviewace.backend.exception.ResumeNotFoundException
+     *         if the user has no resume or no versions exist
+     */
+    ResumeVersionResponse getCurrentVersion(User user);
 
 }
