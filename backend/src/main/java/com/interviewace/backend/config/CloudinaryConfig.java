@@ -16,7 +16,7 @@ import java.util.Map;
  *
  * <p>This is the ONLY class that directly references the Cloudinary SDK
  * for configuration purposes. All runtime usage goes through
- * {@link com.interviewace.backend.service.storage.StorageService}.</p>
+ * {@link com.interviewace.backend.service.storage.CloudinaryService}.</p>
  */
 @Configuration
 public class CloudinaryConfig {

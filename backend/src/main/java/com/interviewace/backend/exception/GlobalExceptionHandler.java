@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.stream.Collectors;
 
@@ -67,6 +68,37 @@ public class GlobalExceptionHandler {
                 .body(new ApiResponse(false, ex.getMessage(), null));
     }
 
+    // =========================================================================
+    // Phase 5.3A — Cloudinary integration exception handlers
+    // =========================================================================
+
+    @ExceptionHandler(InvalidResumeFileException.class)
+    public ResponseEntity<ApiResponse> handleInvalidResumeFile(InvalidResumeFileException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse(false, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(StorageUploadException.class)
+    public ResponseEntity<ApiResponse> handleStorageUpload(StorageUploadException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse(false,
+                        "File size exceeds the maximum allowed size of 5MB.", null));
+    }
+
+    // =========================================================================
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponse> handleGenericException(Exception ex) {
 
@@ -76,4 +108,3 @@ public class GlobalExceptionHandler {
     }
 
 }
-
