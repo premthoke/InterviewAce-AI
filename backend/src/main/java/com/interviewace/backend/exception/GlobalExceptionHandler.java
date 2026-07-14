@@ -98,6 +98,18 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================================================
+    // Phase 5.3B — Resume upload workflow exception handler
+    // =========================================================================
+
+    @ExceptionHandler(ResumeUploadException.class)
+    public ResponseEntity<ApiResponse> handleResumeUpload(ResumeUploadException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, ex.getMessage(), null));
+    }
+
+    // =========================================================================
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponse> handleGenericException(Exception ex) {

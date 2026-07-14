@@ -6,14 +6,18 @@ import com.interviewace.backend.dto.resume.ResumeVersionResponse;
 import com.interviewace.backend.entity.user.User;
 import com.interviewace.backend.security.user.CustomUserPrincipal;
 import com.interviewace.backend.service.resume.ResumeService;
+import com.interviewace.backend.service.resume.ResumeWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -32,9 +36,10 @@ import java.util.List;
  *   <li>{@code GET /api/resume/current} — get the current (latest) version</li>
  * </ul>
  *
- * <p>Since the Resume aggregate is created lazily (only on first upload,
- * introduced in Phase 5.3), all endpoints return 404 until the user
- * has uploaded at least one resume.</p>
+ * <p>Phase 5.3B endpoints:</p>
+ * <ul>
+ *   <li>{@code POST /api/resume/upload} — upload a new resume version</li>
+ * </ul>
  *
  * <p>The authenticated {@link User} is extracted from the {@link Authentication} object
  * in the controller and passed to the service. The service layer never accesses
@@ -48,9 +53,71 @@ public class ResumeController {
     private static final Logger log = LoggerFactory.getLogger(ResumeController.class);
 
     private final ResumeService resumeService;
+    private final ResumeWorkflowService resumeWorkflowService;
 
-    public ResumeController(ResumeService resumeService) {
+    public ResumeController(ResumeService resumeService,
+                            ResumeWorkflowService resumeWorkflowService) {
         this.resumeService = resumeService;
+        this.resumeWorkflowService = resumeWorkflowService;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 5.3B — Resume Upload Endpoint                                */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Uploads a new resume version for the authenticated user.
+     *
+     * <p>This is the first end-to-end business workflow in the application.
+     * It coordinates file validation, Cloudinary upload, Resume/ResumeVersion
+     * persistence, and version management in a single request.</p>
+     *
+     * <p>If the user has no existing Resume, one is created lazily.
+     * Each upload creates a new {@code ResumeVersion} and updates
+     * the {@code currentVersion} pointer on the Resume aggregate.</p>
+     *
+     * @param authentication the current authentication containing the user principal
+     * @param file           the PDF file to upload (max 5MB)
+     * @return the created resume version wrapped in an {@link ApiResponse}
+     */
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Upload a resume",
+            description = "Uploads a PDF resume file and creates a new resume version. "
+                    + "If this is the user's first upload, a Resume aggregate is created automatically. "
+                    + "Each upload increments the version number and updates the current version pointer. "
+                    + "Accepts only PDF files up to 5MB."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201",
+                    description = "Resume version created successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid file — not a PDF, exceeds 5MB, or empty"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized — missing or invalid JWT token"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "Upload failed — Cloudinary or database error"
+            )
+    })
+    public ResponseEntity<ApiResponse> uploadResume(
+            Authentication authentication,
+            @RequestParam("file") MultipartFile file) {
+
+        User user = extractUser(authentication);
+        log.info("POST /api/resume/upload — user: {}", user.getEmail());
+
+        ResumeVersionResponse version = resumeWorkflowService.uploadResume(user, file);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(new ApiResponse(true, "Resume uploaded successfully", version));
     }
 
     /* ------------------------------------------------------------------ */
