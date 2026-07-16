@@ -40,4 +40,19 @@ public interface CloudinaryService {
      */
     void deleteResume(String publicId);
 
+    /**
+     * Downloads a resume file from cloud storage.
+     *
+     * <p>Retrieves the raw file bytes from the given storage URL.
+     * This method abstracts the HTTP download so that consumers
+     * (e.g., the PDF parser) never interact with HTTP clients or
+     * storage provider URLs directly.</p>
+     *
+     * @param storageUrl the full HTTPS URL to the stored file
+     * @return the file content as a byte array
+     * @throws com.interviewace.backend.exception.StorageUploadException
+     *         if the download fails (network error, file not found, etc.)
+     */
+    byte[] downloadResume(String storageUrl);
+
 }

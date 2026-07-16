@@ -1,6 +1,7 @@
 package com.interviewace.backend.entity.resume;
 
 import com.interviewace.backend.entity.base.BaseEntity;
+import com.interviewace.backend.enums.ParseFailureReason;
 import com.interviewace.backend.enums.ParseStatus;
 import com.interviewace.backend.enums.StorageProvider;
 import jakarta.persistence.*;
@@ -27,6 +28,7 @@ import java.time.LocalDateTime;
  * @see Resume
  * @see StorageProvider
  * @see ParseStatus
+ * @see ParseFailureReason
  */
 @Entity
 @Table(name = "resume_versions", indexes = {
@@ -141,4 +143,86 @@ public class ResumeVersion extends BaseEntity {
      */
     @Column(name = "checksum", nullable = false, length = 64)
     private String checksum;
+
+    /* ------------------------------------------------------------------ */
+    /*  Parsing Fields (Phase 5.4)                                         */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * The full text content extracted from the PDF resume.
+     *
+     * <p>Populated by the PDF parsing pipeline after successful text extraction.
+     * Stored as {@code LONGTEXT} (up to ~4GB) to accommodate any resume length.
+     * {@code null} until parsing completes successfully.</p>
+     *
+     * <p>This field is the primary input for the future Gemini AI analysis pipeline.
+     * It is intentionally <b>not</b> exposed in API responses — only the AI layer
+     * accesses it directly.</p>
+     */
+    @Lob
+    @Column(name = "parsed_text", columnDefinition = "LONGTEXT")
+    private String parsedText;
+
+    /**
+     * The timestamp when the parsing process began.
+     *
+     * <p>Used for:</p>
+     * <ul>
+     *     <li>Timeout detection (PENDING entries older than threshold)</li>
+     *     <li>Parse duration computation ({@code parseCompletedAt - parseStartedAt})</li>
+     *     <li>Performance monitoring and analytics</li>
+     * </ul>
+     */
+    @Column(name = "parse_started_at")
+    private LocalDateTime parseStartedAt;
+
+    /**
+     * The timestamp when the parsing process finished (success or failure).
+     *
+     * <p>Set on both {@code COMPLETED} and {@code FAILED} transitions.
+     * Combined with {@code parseStartedAt} to compute parse duration.</p>
+     */
+    @Column(name = "parse_completed_at")
+    private LocalDateTime parseCompletedAt;
+
+    /**
+     * The structured reason category for a parsing failure.
+     *
+     * <p>Provides a machine-readable failure classification for dashboards,
+     * analytics, and automated retry decisions. Only set when
+     * {@code parseStatus = FAILED}; {@code null} otherwise.</p>
+     *
+     * @see ParseFailureReason
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "parse_failure_reason")
+    private ParseFailureReason parseFailureReason;
+
+    /**
+     * Detailed error message describing why parsing failed.
+     *
+     * <p>Stores the technical exception message for debugging purposes.
+     * Works alongside {@code parseFailureReason} which provides the
+     * structured category. Only set when {@code parseStatus = FAILED}.</p>
+     */
+    @Column(name = "parse_error_message", length = 1000)
+    private String parseErrorMessage;
+
+    /**
+     * The number of words in the extracted text.
+     *
+     * <p>Computed during parsing by splitting on whitespace boundaries.
+     * Used for:</p>
+     * <ul>
+     *     <li>Resume statistics and analytics</li>
+     *     <li>ATS score normalization</li>
+     *     <li>Gemini prompt token budgeting</li>
+     *     <li>Interview question generation calibration</li>
+     * </ul>
+     *
+     * <p>{@code null} until parsing completes successfully.</p>
+     */
+    @Column(name = "word_count")
+    private Integer wordCount;
 }
+

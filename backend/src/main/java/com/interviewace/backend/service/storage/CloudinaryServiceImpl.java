@@ -6,6 +6,7 @@ import com.interviewace.backend.exception.StorageUploadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 
 import java.util.Map;
 
@@ -33,9 +34,11 @@ public class CloudinaryServiceImpl implements CloudinaryService {
 
     private final Cloudinary cloudinary;
     private final CloudinaryProperties properties;
+    private final RestClient restClient;
 
     /**
-     * Constructor injection for the Cloudinary SDK instance and properties.
+     * Constructor injection for the Cloudinary SDK instance, properties,
+     * and REST client for file downloads.
      *
      * @param cloudinary the configured Cloudinary SDK bean
      * @param properties the Cloudinary configuration properties (for folder name, etc.)
@@ -43,6 +46,7 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     public CloudinaryServiceImpl(Cloudinary cloudinary, CloudinaryProperties properties) {
         this.cloudinary = cloudinary;
         this.properties = properties;
+        this.restClient = RestClient.create();
     }
 
     /**
@@ -108,4 +112,46 @@ public class CloudinaryServiceImpl implements CloudinaryService {
         }
     }
 
+    // =========================================================================
+    // Phase 5.4A — Resume download
+    // =========================================================================
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Downloads the resume file from the given Cloudinary secure URL using
+     * Spring's {@link RestClient}. This keeps all HTTP interaction encapsulated
+     * within the storage layer — consumers receive plain {@code byte[]}.</p>
+     *
+     * <p>Failures (network errors, 404s, timeouts) are wrapped in
+     * {@link StorageUploadException} to maintain a clean exception boundary.</p>
+     */
+    @Override
+    public byte[] downloadResume(String storageUrl) {
+        log.info("Downloading file from storage: url={}", storageUrl);
+
+        try {
+            byte[] fileBytes = restClient.get()
+                    .uri(storageUrl)
+                    .retrieve()
+                    .body(byte[].class);
+
+            if (fileBytes == null || fileBytes.length == 0) {
+                throw new StorageUploadException(
+                        "Downloaded file is empty. URL: " + storageUrl);
+            }
+
+            log.info("Download successful: url={}, size={} bytes", storageUrl, fileBytes.length);
+            return fileBytes;
+
+        } catch (StorageUploadException e) {
+            // Re-throw our own exceptions without wrapping
+            throw e;
+        } catch (Exception e) {
+            log.error("File download failed: url={}, error={}", storageUrl, e.getMessage(), e);
+            throw new StorageUploadException(
+                    "Failed to download file from cloud storage.", e);
+        }
+    }
 }
+

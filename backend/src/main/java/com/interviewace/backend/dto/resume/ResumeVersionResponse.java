@@ -64,6 +64,31 @@ public class ResumeVersionResponse {
     private String parseStatus;
 
     /**
+     * The timestamp when the parsing process began.
+     */
+    private LocalDateTime parseStartedAt;
+
+    /**
+     * The timestamp when the parsing process finished (success or failure).
+     */
+    private LocalDateTime parseCompletedAt;
+
+    /**
+     * Whether this version has extracted text content.
+     *
+     * <p>Derived from {@code parsedText != null && !parsedText.isBlank()}.
+     * The raw text itself is intentionally not exposed in API responses.</p>
+     */
+    private Boolean hasText;
+
+    /**
+     * The number of words in the extracted text.
+     *
+     * <p>{@code null} if parsing has not completed successfully.</p>
+     */
+    private Integer wordCount;
+
+    /**
      * The timestamp when this version record was created.
      */
     private LocalDateTime createdAt;

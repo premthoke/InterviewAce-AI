@@ -86,6 +86,15 @@
 			<version>2.4.0</version>
 		</dependency>
 
+		<!-- =============================== -->
+		<!-- Apache PDFBox (Phase 5.4)        -->
+		<!-- =============================== -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>3.0.5</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
