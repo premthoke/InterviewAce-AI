@@ -11,6 +11,7 @@ import com.interviewace.backend.exception.ResumeUploadException;
 import com.interviewace.backend.mapper.ResumeMapper;
 import com.interviewace.backend.repository.resume.ResumeRepository;
 import com.interviewace.backend.repository.resume.ResumeVersionRepository;
+import com.interviewace.backend.service.parser.PdfParserService;
 import com.interviewace.backend.service.storage.CloudinaryService;
 import com.interviewace.backend.service.storage.CloudinaryUploadResult;
 import org.slf4j.Logger;
@@ -52,7 +53,15 @@ import java.util.HexFormat;
  * that works correctly regardless of method visibility, giving us precise
  * control over the transaction boundary.</p>
  *
+ * <p><b>Phase 5.4B — PDF parsing integration:</b> After the upload persists
+ * successfully, the service invokes {@link PdfParserService#parseResume(Long)}
+ * synchronously. Parsing is fire-and-forget — errors are caught and persisted
+ * by {@code PdfParserServiceImpl}, never propagated to the caller. The response
+ * DTO is built after parsing completes, so it includes the post-parse state
+ * ({@code parseStatus}, {@code hasText}, {@code wordCount}).</p>
+ *
  * @see CloudinaryService
+ * @see PdfParserService
  * @see ResumeService
  */
 @Service
@@ -67,6 +76,7 @@ public class ResumeWorkflowServiceImpl implements ResumeWorkflowService {
     private static final String ALLOWED_CONTENT_TYPE = "application/pdf";
 
     private final CloudinaryService cloudinaryService;
+    private final PdfParserService pdfParserService;
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final ResumeMapper resumeMapper;
@@ -76,17 +86,20 @@ public class ResumeWorkflowServiceImpl implements ResumeWorkflowService {
      * Constructor injection for all dependencies.
      *
      * @param cloudinaryService        Cloudinary storage service
+     * @param pdfParserService         PDF text extraction service
      * @param resumeRepository         repository for Resume aggregate root
      * @param resumeVersionRepository  repository for ResumeVersion entities
      * @param resumeMapper             mapper for entity-to-DTO conversions
      * @param transactionTemplate      programmatic transaction manager
      */
     public ResumeWorkflowServiceImpl(CloudinaryService cloudinaryService,
+                                     PdfParserService pdfParserService,
                                      ResumeRepository resumeRepository,
                                      ResumeVersionRepository resumeVersionRepository,
                                      ResumeMapper resumeMapper,
                                      TransactionTemplate transactionTemplate) {
         this.cloudinaryService = cloudinaryService;
+        this.pdfParserService = pdfParserService;
         this.resumeRepository = resumeRepository;
         this.resumeVersionRepository = resumeVersionRepository;
         this.resumeMapper = resumeMapper;
@@ -125,17 +138,15 @@ public class ResumeWorkflowServiceImpl implements ResumeWorkflowService {
         log.info("Cloudinary upload completed: publicId={}", uploadResult.publicId());
 
         // --- Steps 5–11: Persist in DB (INSIDE transaction) ---
+        ResumeVersion savedVersion;
         try {
-            ResumeVersion savedVersion = persistResumeVersion(
+            savedVersion = persistResumeVersion(
                     user, originalFilename, contentType, fileSize,
                     checksum, uploadResult
             );
 
             log.info("Resume version {} created: user={}, publicId={}",
                     savedVersion.getVersionNumber(), user.getEmail(), uploadResult.publicId());
-
-            // --- Step 12: Map to response DTO ---
-            return resumeMapper.toVersionResponse(savedVersion);
 
         } catch (Exception e) {
             // --- Compensating delete: remove orphaned Cloudinary file ---
@@ -153,6 +164,15 @@ public class ResumeWorkflowServiceImpl implements ResumeWorkflowService {
             throw new ResumeUploadException(
                     "Resume upload failed. The file has been cleaned up. Please try again.", e);
         }
+
+        // --- Step 12: Invoke PDF parser (fire-and-forget, errors persisted internally) ---
+        pdfParserService.parseResume(savedVersion.getId());
+
+        // --- Step 13: Re-read entity to capture post-parse state and map to DTO ---
+        ResumeVersion freshVersion = transactionTemplate.execute(status ->
+                resumeVersionRepository.findById(savedVersion.getId()).orElse(savedVersion)
+        );
+        return resumeMapper.toVersionResponse(freshVersion);
     }
 
     /* ------------------------------------------------------------------ */

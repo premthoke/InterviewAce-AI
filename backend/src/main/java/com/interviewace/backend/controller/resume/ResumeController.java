@@ -1,10 +1,16 @@
 package com.interviewace.backend.controller.resume;
 
 import com.interviewace.backend.dto.response.ApiResponse;
+import com.interviewace.backend.dto.resume.ParseStatusResponse;
 import com.interviewace.backend.dto.resume.ResumeResponse;
 import com.interviewace.backend.dto.resume.ResumeVersionResponse;
+import com.interviewace.backend.entity.resume.ResumeVersion;
 import com.interviewace.backend.entity.user.User;
+import com.interviewace.backend.exception.ResumeNotFoundException;
+import com.interviewace.backend.mapper.ResumeMapper;
+import com.interviewace.backend.repository.resume.ResumeVersionRepository;
 import com.interviewace.backend.security.user.CustomUserPrincipal;
+import com.interviewace.backend.service.parser.PdfParserService;
 import com.interviewace.backend.service.resume.ResumeService;
 import com.interviewace.backend.service.resume.ResumeWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +47,12 @@ import java.util.List;
  *   <li>{@code POST /api/resume/upload} — upload a new resume version</li>
  * </ul>
  *
+ * <p>Phase 5.4B endpoints:</p>
+ * <ul>
+ *   <li>{@code POST /api/resume/versions/{id}/parse} — manually retry parsing</li>
+ *   <li>{@code GET /api/resume/versions/{id}/parse-status} — get parse status</li>
+ * </ul>
+ *
  * <p>The authenticated {@link User} is extracted from the {@link Authentication} object
  * in the controller and passed to the service. The service layer never accesses
  * Spring Security directly.</p>
@@ -54,11 +66,20 @@ public class ResumeController {
 
     private final ResumeService resumeService;
     private final ResumeWorkflowService resumeWorkflowService;
+    private final PdfParserService pdfParserService;
+    private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeMapper resumeMapper;
 
     public ResumeController(ResumeService resumeService,
-                            ResumeWorkflowService resumeWorkflowService) {
+                            ResumeWorkflowService resumeWorkflowService,
+                            PdfParserService pdfParserService,
+                            ResumeVersionRepository resumeVersionRepository,
+                            ResumeMapper resumeMapper) {
         this.resumeService = resumeService;
         this.resumeWorkflowService = resumeWorkflowService;
+        this.pdfParserService = pdfParserService;
+        this.resumeVersionRepository = resumeVersionRepository;
+        this.resumeMapper = resumeMapper;
     }
 
     /* ------------------------------------------------------------------ */
@@ -286,6 +307,115 @@ public class ResumeController {
 
         return ResponseEntity.ok(
                 new ApiResponse(true, "Current resume version retrieved successfully", currentVersion)
+        );
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Phase 5.4B — PDF Parsing Endpoints                                 */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Manually triggers PDF text extraction for a specific resume version.
+     *
+     * <p>Intended for retrying failed or skipped parses. The parser includes
+     * built-in idempotency guards — if the version is already {@code COMPLETED}
+     * or {@code PENDING}, the parse is skipped (no error thrown).</p>
+     *
+     * <p>Parsing is invoked synchronously. On success, the response includes
+     * the updated parse status. On failure, a {@code PdfParseException} is
+     * propagated and handled by {@link com.interviewace.backend.exception.GlobalExceptionHandler}.</p>
+     *
+     * @param id the resume version ID to parse
+     * @return the parse status wrapped in an {@link ApiResponse}
+     */
+    @PostMapping("/versions/{id}/parse")
+    @Operation(
+            summary = "Retry PDF parsing",
+            description = "Manually triggers PDF text extraction for a resume version. "
+                    + "Useful for retrying after a transient failure (e.g., network timeout). "
+                    + "Idempotent — already-completed or in-progress versions are skipped."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Parse triggered successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Resume version not found"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized — missing or invalid JWT token"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "Parse failed — see error details"
+            )
+    })
+    public ResponseEntity<ApiResponse> parseResumeVersion(@PathVariable Long id) {
+
+        log.info("POST /api/resume/versions/{}/parse", id);
+
+        // Validate existence
+        ResumeVersion version = resumeVersionRepository.findById(id)
+                .orElseThrow(() -> new ResumeNotFoundException(
+                        "Resume version not found: id=" + id));
+
+        // Invoke parser (fire-and-forget — errors persisted internally)
+        pdfParserService.parseResume(version.getId());
+
+        // Re-read to get post-parse state
+        ResumeVersion freshVersion = resumeVersionRepository.findById(id).orElse(version);
+        ParseStatusResponse status = resumeMapper.toParseStatusResponse(freshVersion);
+
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Parse completed", status)
+        );
+    }
+
+    /**
+     * Retrieves the parsing status of a specific resume version.
+     *
+     * <p>Returns detailed parse metadata including timing, content indicators,
+     * and failure details (if applicable). The raw parsed text is never exposed.</p>
+     *
+     * @param id the resume version ID
+     * @return the parse status wrapped in an {@link ApiResponse}
+     */
+    @GetMapping("/versions/{id}/parse-status")
+    @Operation(
+            summary = "Get parse status",
+            description = "Returns detailed parsing status for a resume version, including "
+                    + "timing, content indicators (hasText, textLength, wordCount), "
+                    + "and failure details if parsing failed."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Parse status retrieved successfully"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Resume version not found"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized — missing or invalid JWT token"
+            )
+    })
+    public ResponseEntity<ApiResponse> getParseStatus(@PathVariable Long id) {
+
+        log.info("GET /api/resume/versions/{}/parse-status", id);
+
+        ResumeVersion version = resumeVersionRepository.findById(id)
+                .orElseThrow(() -> new ResumeNotFoundException(
+                        "Resume version not found: id=" + id));
+
+        ParseStatusResponse status = resumeMapper.toParseStatusResponse(version);
+
+        return ResponseEntity.ok(
+                new ApiResponse(true, "Parse status retrieved successfully", status)
         );
     }
 

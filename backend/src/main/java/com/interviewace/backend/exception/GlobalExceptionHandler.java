@@ -110,6 +110,19 @@ public class GlobalExceptionHandler {
     }
 
     // =========================================================================
+    // Phase 5.4B — PDF parsing exception handler
+    // =========================================================================
+
+    @ExceptionHandler(PdfParseException.class)
+    public ResponseEntity<ApiResponse> handlePdfParse(PdfParseException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false,
+                        "PDF parsing failed: " + ex.getMessage(), null));
+    }
+
+    // =========================================================================
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponse> handleGenericException(Exception ex) {
