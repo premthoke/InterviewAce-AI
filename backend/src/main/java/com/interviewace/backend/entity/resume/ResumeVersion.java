@@ -7,6 +7,8 @@ import com.interviewace.backend.enums.StorageProvider;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 
 /**
@@ -23,6 +25,9 @@ import java.time.LocalDateTime;
  * <ul>
  *     <li>{@code resume} — owning side of the many-to-one relationship
  *         with {@link Resume}.</li>
+ *     <li>{@code analyses} — inverse side of the one-to-many relationship
+ *         with {@link ResumeAnalysis}. A version can have multiple AI analyses
+ *         (re-analysis, model upgrades, prompt A/B testing).</li>
  * </ul>
  *
  * @see Resume
@@ -53,6 +58,22 @@ public class ResumeVersion extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resume_id", nullable = false)
     private Resume resume;
+
+    /**
+     * All AI analyses performed on this resume version.
+     *
+     * <p>Inverse (non-owning) side of the bidirectional relationship.
+     * A single version can have multiple analyses — each re-analysis
+     * or model upgrade creates a new {@link ResumeAnalysis} entity
+     * rather than overwriting the previous one.</p>
+     *
+     * <p>No cascade is configured — analysis lifecycle is managed
+     * by the service layer. Database-level {@code ON DELETE CASCADE}
+     * on the FK ensures cleanup when a version is deleted.</p>
+     */
+    @OneToMany(mappedBy = "resumeVersion", fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<ResumeAnalysis> analyses = new ArrayList<>();
 
     /* ------------------------------------------------------------------ */
     /*  Version Metadata                                                   */
